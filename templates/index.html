@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HoloRay Motion-Tracked Annotations</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.0/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">◉</span>
+                <h1>HoloRay Tracker</h1>
+            </div>
+            <div class="header-stats">
+                <div class="stat" id="fps-display">
+                    <span class="stat-label">FPS</span>
+                    <span class="stat-value">--</span>
+                </div>
+                <div class="stat" id="tracking-display">
+                    <span class="stat-label">Tracking</span>
+                    <span class="stat-value">0/0</span>
+                </div>
+                <div class="stat" id="latency-display">
+                    <span class="stat-label">Latency</span>
+                    <span class="stat-value">--ms</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main content -->
+        <div class="main-content">
+            <!-- Video panel -->
+            <div class="video-panel">
+                <div class="video-container" id="video-container">
+                    <canvas id="video-canvas"></canvas>
+                    <canvas id="annotation-canvas"></canvas>
+                    <div class="video-placeholder" id="video-placeholder">
+                        <p>Load a video to begin</p>
+                    </div>
+                </div>
+
+                <!-- Video controls -->
+                <div class="video-controls">
+                    <button id="btn-play" class="control-btn" disabled>
+                        <span class="icon">▶</span> Play
+                    </button>
+                    <button id="btn-pause" class="control-btn" disabled>
+                        <span class="icon">⏸</span> Pause
+                    </button>
+                    <div class="progress-container">
+                        <input type="range" id="progress-bar" min="0" max="100" value="0" disabled>
+                        <span id="frame-counter">0 / 0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Control panel -->
+            <div class="control-panel">
+                <!-- Video selection -->
+                <section class="panel-section">
+                    <h2>Video Source</h2>
+                    <select id="video-select">
+                        <option value="">Select a video...</option>
+                    </select>
+                    <button id="btn-load" class="primary-btn">Load Video</button>
+                </section>
+
+                <!-- Annotation tools -->
+                <section class="panel-section">
+                    <h2>Annotation Tools</h2>
+                    <div class="tool-buttons">
+                        <button id="tool-point" class="tool-btn active" title="Point Annotation">
+                            <span class="tool-icon">●</span>
+                            <span>Point</span>
+                        </button>
+                        <button id="tool-region" class="tool-btn" title="Region Annotation">
+                            <span class="tool-icon">□</span>
+                            <span>Region</span>
+                        </button>
+                    </div>
+                    <div class="tool-options">
+                        <label>
+                            Label:
+                            <input type="text" id="annotation-label" placeholder="Optional label">
+                        </label>
+                    </div>
+                </section>
+
+                <!-- Tracker settings -->
+                <section class="panel-section">
+                    <h2>Tracker Settings</h2>
+                    <div class="setting">
+                        <label>Region Tracker:</label>
+                        <select id="tracker-type">
+                            <option value="CSRT">CSRT (High Accuracy)</option>
+                            <option value="KCF">KCF (Balanced)</option>
+                            <option value="MOSSE">MOSSE (Fast)</option>
+                        </select>
+                    </div>
+                </section>
+
+                <!-- Annotations list -->
+                <section class="panel-section">
+                    <h2>Active Annotations</h2>
+                    <div id="annotations-list" class="annotations-list">
+                        <p class="empty-message">No annotations yet</p>
+                    </div>
+                    <button id="btn-clear-all" class="danger-btn">Clear All</button>
+                </section>
+
+                <!-- Instructions -->
+                <section class="panel-section instructions">
+                    <h2>Instructions</h2>
+                    <ul>
+                        <li>Load a video using the dropdown</li>
+                        <li>Select Point or Region tool</li>
+                        <li>Click on the video to place annotations</li>
+                        <li>Press Play to start tracking</li>
+                        <li>Annotations follow the anatomy!</li>
+                    </ul>
+                </section>
+            </div>
+        </div>
+
+        <!-- Status bar -->
+        <footer class="status-bar">
+            <span id="status-message">Ready</span>
+            <span id="connection-status" class="connection disconnected">Disconnected</span>
+        </footer>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
