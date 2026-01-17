@@ -98,33 +98,50 @@ def draw_annotations(frame: np.ndarray, tracking_results: dict) -> np.ndarray:
 def video_processing_loop():
     """Main video processing loop running in background thread."""
     while True:
-        if not state.is_playing or state.video_capture is None:
+        if state.video_capture is None:
             socketio.sleep(0.05)
             continue
 
-        with state.frame_lock:
-            ret, frame = state.video_capture.read()
-
-            if not ret:
-                # Loop video
-                state.video_capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                state.tracker.clear_all()
-                # Re-add annotations from stored state
+        # If playing, read next frame
+        if state.is_playing:
+            with state.frame_lock:
                 ret, frame = state.video_capture.read()
-                if ret:
-                    for aid, ann in state.annotations.items():
-                        if ann["type"] == "point":
-                            state.tracker.add_point(aid, ann["x"], ann["y"], frame)
-                        elif ann["type"] == "region":
-                            state.tracker.add_region(aid, tuple(ann["bbox"]), frame)
-                state.frame_count = 0
-                continue
 
-            state.current_frame = frame.copy()
-            state.frame_count += 1
+                if not ret:
+                    # Loop video
+                    state.video_capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    state.tracker.clear_all()
+                    # Re-add annotations from stored state
+                    ret, frame = state.video_capture.read()
+                    if ret:
+                        for aid, ann in state.annotations.items():
+                            if ann["type"] == "point":
+                                state.tracker.add_point(aid, ann["x"], ann["y"], frame)
+                            elif ann["type"] == "region":
+                                state.tracker.add_region(aid, tuple(ann["bbox"]), frame)
+                    state.frame_count = 0
+                    if not ret:
+                        socketio.sleep(0.05)
+                        continue
 
-        # Update tracking
-        tracking_results = state.tracker.update(frame)
+                state.current_frame = frame.copy()
+                state.frame_count += 1
+
+            # Update tracking
+            tracking_results = state.tracker.update(frame)
+        else:
+            # When paused, use current frame and still update tracking if we have annotations
+            with state.frame_lock:
+                if state.current_frame is None:
+                    socketio.sleep(0.05)
+                    continue
+                frame = state.current_frame.copy()
+
+            # Update tracking on current frame (for visualization)
+            if len(state.annotations) > 0:
+                tracking_results = state.tracker.update(frame)
+            else:
+                tracking_results = {"points": {}, "regions": {}, "fps": 0, "process_time_ms": 0}
 
         # Draw annotations
         annotated_frame = draw_annotations(frame, tracking_results)
@@ -133,7 +150,7 @@ def video_processing_loop():
         h, w = annotated_frame.shape[:2]
 
         # FPS counter
-        fps_text = f"FPS: {tracking_results['fps']:.1f}"
+        fps_text = f"FPS: {tracking_results.get('fps', 0):.1f}"
         cv2.putText(annotated_frame, fps_text, (w - 150, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
@@ -160,8 +177,11 @@ def video_processing_loop():
             'total_frames': state.total_frames
         })
 
-        # Control frame rate
-        socketio.sleep(1.0 / state.video_fps)
+        # Control frame rate - slower when paused
+        if state.is_playing:
+            socketio.sleep(1.0 / state.video_fps)
+        else:
+            socketio.sleep(0.1)  # Update paused frame every 100ms
 
 
 @app.route('/')
@@ -172,14 +192,20 @@ def index():
 
 @app.route('/api/videos')
 def list_videos():
-    """List available videos in the videos directory."""
+    """List available videos in the videos directory (recursively)."""
     videos_dir = os.path.join(os.path.dirname(__file__), '..', 'videos')
     videos = []
 
     if os.path.exists(videos_dir):
-        for f in os.listdir(videos_dir):
-            if f.lower().endswith(('.mp4', '.avi', '.mov', '.mkv')):
-                videos.append(f)
+        # Walk through all subdirectories
+        for root, dirs, files in os.walk(videos_dir):
+            for f in files:
+                if f.lower().endswith(('.mp4', '.avi', '.mov', '.mkv')):
+                    # Get relative path from videos_dir
+                    rel_path = os.path.relpath(os.path.join(root, f), videos_dir)
+                    # Use forward slashes for web compatibility
+                    rel_path = rel_path.replace('\\', '/')
+                    videos.append(rel_path)
 
     return jsonify(videos)
 
@@ -194,6 +220,8 @@ def load_video():
         return jsonify({'error': 'No video specified'}), 400
 
     videos_dir = os.path.join(os.path.dirname(__file__), '..', 'videos')
+    # Normalize path separators (handle both / and \)
+    video_name = video_name.replace('/', os.sep).replace('\\', os.sep)
     video_path = os.path.join(videos_dir, video_name)
 
     if not os.path.exists(video_path):
@@ -257,8 +285,8 @@ def handle_pause():
 def handle_add_point(data):
     """Add a new point annotation."""
     point_id = data.get('id', f"point_{len(state.annotations)}")
-    x = data['x']
-    y = data['y']
+    x = int(data['x'])
+    y = int(data['y'])
     label = data.get('label', point_id)
 
     with state.frame_lock:
@@ -270,6 +298,16 @@ def handle_add_point(data):
                 'y': y,
                 'label': label
             }
+            # Send updated frame immediately
+            tracking_results = state.tracker.update(state.current_frame)
+            annotated_frame = draw_annotations(state.current_frame, tracking_results)
+            frame_data = encode_frame(annotated_frame)
+            emit('frame', {
+                'image': frame_data,
+                'tracking': tracking_results,
+                'frame_num': state.frame_count,
+                'total_frames': state.total_frames
+            }, broadcast=True)
 
     emit('annotation_added', {
         'id': point_id,
@@ -284,7 +322,7 @@ def handle_add_point(data):
 def handle_add_region(data):
     """Add a new region annotation."""
     region_id = data.get('id', f"region_{len(state.annotations)}")
-    bbox = (data['x'], data['y'], data['width'], data['height'])
+    bbox = (int(data['x']), int(data['y']), int(data['width']), int(data['height']))
     label = data.get('label', region_id)
     tracker_type = data.get('tracker', 'CSRT')
 
@@ -296,6 +334,16 @@ def handle_add_region(data):
                 'bbox': list(bbox),
                 'label': label
             }
+            # Send updated frame immediately
+            tracking_results = state.tracker.update(state.current_frame)
+            annotated_frame = draw_annotations(state.current_frame, tracking_results)
+            frame_data = encode_frame(annotated_frame)
+            emit('frame', {
+                'image': frame_data,
+                'tracking': tracking_results,
+                'frame_num': state.frame_count,
+                'total_frames': state.total_frames
+            }, broadcast=True)
 
     emit('annotation_added', {
         'id': region_id,
@@ -318,6 +366,20 @@ def handle_remove_annotation(data):
             else:
                 state.tracker.remove_region(ann_id)
             del state.annotations[ann_id]
+            # Send updated frame
+            if state.current_frame is not None:
+                if len(state.annotations) > 0:
+                    tracking_results = state.tracker.update(state.current_frame)
+                else:
+                    tracking_results = {"points": {}, "regions": {}, "fps": 0, "process_time_ms": 0}
+                annotated_frame = draw_annotations(state.current_frame, tracking_results)
+                frame_data = encode_frame(annotated_frame)
+                emit('frame', {
+                    'image': frame_data,
+                    'tracking': tracking_results,
+                    'frame_num': state.frame_count,
+                    'total_frames': state.total_frames
+                }, broadcast=True)
 
     emit('annotation_removed', {'id': ann_id}, broadcast=True)
 
@@ -328,6 +390,17 @@ def handle_clear_annotations():
     with state.frame_lock:
         state.tracker.clear_all()
         state.annotations.clear()
+        # Send updated frame
+        if state.current_frame is not None:
+            tracking_results = {"points": {}, "regions": {}, "fps": 0, "process_time_ms": 0}
+            annotated_frame = draw_annotations(state.current_frame, tracking_results)
+            frame_data = encode_frame(annotated_frame)
+            emit('frame', {
+                'image': frame_data,
+                'tracking': tracking_results,
+                'frame_num': state.frame_count,
+                'total_frames': state.total_frames
+            }, broadcast=True)
 
     emit('annotations_cleared', broadcast=True)
 

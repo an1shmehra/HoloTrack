@@ -28,6 +28,11 @@ class HoloRayApp {
         this.lastFrameTime = Date.now();
         this.frameCount = 0;
 
+        // Canvas scaling
+        this.displayScale = 1.0;
+        this.videoWidth = 0;
+        this.videoHeight = 0;
+
         this.init();
     }
 
@@ -247,14 +252,28 @@ class HoloRayApp {
 
     getCanvasCoordinates(e) {
         const rect = this.videoCanvas.getBoundingClientRect();
-        const x = (e.clientX - rect.left) / this.displayScale;
-        const y = (e.clientY - rect.top) / this.displayScale;
-        return { x: Math.round(x), y: Math.round(y) };
+        // Calculate scale from actual canvas size vs display size
+        const scaleX = this.videoCanvas.width / rect.width;
+        const scaleY = this.videoCanvas.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+        // Clamp to canvas bounds
+        const clampedX = Math.max(0, Math.min(this.videoCanvas.width, Math.round(x)));
+        const clampedY = Math.max(0, Math.min(this.videoCanvas.height, Math.round(y)));
+        return { x: clampedX, y: clampedY };
     }
 
     handleCanvasMouseDown(e) {
         if (!this.videoLoaded) return;
+        
+        // Only handle clicks on the canvas area
+        const rect = this.videoCanvas.getBoundingClientRect();
+        if (e.clientX < rect.left || e.clientX > rect.right ||
+            e.clientY < rect.top || e.clientY > rect.bottom) {
+            return;
+        }
 
+        e.preventDefault();
         const coords = this.getCanvasCoordinates(e);
 
         if (this.currentTool === 'point') {
@@ -266,15 +285,17 @@ class HoloRayApp {
     }
 
     handleCanvasMouseMove(e) {
-        if (!this.isDrawingRegion) return;
+        if (!this.isDrawingRegion || !this.regionStart) return;
 
+        e.preventDefault();
         const coords = this.getCanvasCoordinates(e);
         this.drawRegionPreview(this.regionStart, coords);
     }
 
     handleCanvasMouseUp(e) {
-        if (!this.isDrawingRegion) return;
+        if (!this.isDrawingRegion || !this.regionStart) return;
 
+        e.preventDefault();
         const coords = this.getCanvasCoordinates(e);
         this.isDrawingRegion = false;
 

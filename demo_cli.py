@@ -70,9 +70,19 @@ class DemoApp:
 
         # Performance
         self.process_times = []
+        
+        # Display scaling for small videos
+        self.display_scale = 1.0
+        if self.width < 400 or self.height < 400:
+            self.display_scale = max(640 / self.width, 640 / self.height)
 
     def mouse_callback(self, event, x, y, flags, param):
         """Handle mouse events for annotation placement."""
+        # Convert mouse coordinates from scaled display back to original video coordinates
+        if self.display_scale > 1.0:
+            x = int(x / self.display_scale)
+            y = int(y / self.display_scale)
+        
         if event == cv2.EVENT_LBUTTONDOWN:
             if self.region_mode:
                 self.drawing_region = True
@@ -216,7 +226,14 @@ class DemoApp:
     def run(self):
         """Main demo loop."""
         window_name = "HoloRay Motion Tracker"
-        cv2.namedWindow(window_name)
+        # Create resizable window and set initial size
+        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+        # Calculate display size - scale up small videos for better visibility
+        # Minimum display size: 640x640, scale up if video is smaller
+        scale_factor = max(640 / self.width, 640 / self.height, 1.0)
+        display_width = int(self.width * scale_factor)
+        display_height = int(self.height * scale_factor)
+        cv2.resizeWindow(window_name, display_width, display_height)
         cv2.setMouseCallback(window_name, self.mouse_callback)
 
         print("\n" + "=" * 50)
@@ -281,11 +298,21 @@ class DemoApp:
             # Draw HUD
             display_frame = self.draw_hud(display_frame, results)
 
-            # Write to output if enabled
-            if self.writer and not self.paused:
-                self.writer.write(display_frame)
+            # Scale up frame for display if video is small
+            # This makes small videos (like 112x112 echo) more visible
+            if self.display_scale > 1.0:
+                display_width = int(self.width * self.display_scale)
+                display_height = int(self.height * self.display_scale)
+                display_frame = cv2.resize(display_frame, (display_width, display_height), interpolation=cv2.INTER_NEAREST)
 
-            # Display
+            # Write to output if enabled (use original size, not scaled)
+            if self.writer and not self.paused:
+                # Write original frame, not scaled version
+                original_frame = self.draw_annotations(frame, results)
+                original_frame = self.draw_hud(original_frame, results)
+                self.writer.write(original_frame)
+
+            # Display scaled frame
             cv2.imshow(window_name, display_frame)
 
             # Handle keyboard
