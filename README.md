@@ -10,7 +10,6 @@ This README explains what the project does, how to run it, and the most importan
 
 ## What it does (in plain words)
 - Launch a compact GUI to pick a video file (or use the default `Microscopy1.mp4`).
-- Click once to set an anchor (a “blue dot”) on the object to track.
 - Drag the mouse to draw contour regions you want to track over time.
 - The tracker uses local features + optical flow to estimate object motion and warps your drawn contours accordingly.
 - If the tracker loses the object it attempts to re-acquire it using template matching inside a search window.
