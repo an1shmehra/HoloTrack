@@ -39,4 +39,4 @@ pip install opencv-python numpy
 ---
 
 ## Short Demo
-[Click here to access the demo](https://drive.google.com/file/d/13Db7KijjXU77jdIx1OZ43QJmXMtfURZJ/view?usp=sharing)
+[Click here to access the demo](https://www.youtube.com/watch?v=4Kaoa3i0Pko)
