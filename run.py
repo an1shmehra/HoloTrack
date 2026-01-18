@@ -119,8 +119,8 @@ def main():
     fps = cap.get(cv2.CAP_PROP_FPS)
     delay = int(1000 / fps) if fps > 0 else 33
     
-    cv2.namedWindow("Hybrid Annotation Tracker")
-    cv2.setMouseCallback("Hybrid Annotation Tracker", mouse_callback)
+    cv2.namedWindow("HoloTrack")
+    cv2.setMouseCallback("HoloTrack", mouse_callback)
     
     while True:
         if not paused:
@@ -214,7 +214,7 @@ def main():
         
         # Simple dashboard at top left
         cv2.rectangle(display, (0, 0), (220, 85), (30, 30, 30), -1)
-        cv2.putText(display, f"STATUS: {status_text}", (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2)
+        # cv2.putText(display, f"STATUS: {status_text}", (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2)
         cv2.putText(display, f"Confidence Score: {len(annotation_trackers)}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
         cv2.putText(display, f"Frame: {frame_count}", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
 
@@ -228,7 +228,7 @@ def main():
             lx, ly = int(last_known_pos[0]), int(last_known_pos[1])
             cv2.putText(display, "SEARCHING...", (lx-40, ly-90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
         
-        cv2.imshow("Hybrid Annotation Tracker", display)
+        cv2.imshow("HoloTrack", display)
         
         key = cv2.waitKey(delay) & 0xFF
         if key == 27: break
@@ -250,7 +250,7 @@ def create_professional_frontend():
     BTN_ACTIVE = "#5E81AC"     # Blueish
     
     root = tk.Tk()
-    root.title("VisionTrack Pro")
+    root.title("HoloTrack")
     root.geometry("600x450")
     root.configure(bg=BG_COLOR)
     
@@ -280,7 +280,7 @@ def create_professional_frontend():
     # 1. Header Section
     header_frame = ttk.Frame(main_frame)
     header_frame.pack(fill=tk.X, pady=(0, 20))
-    ttk.Label(header_frame, text="VISIONTRACK PRO", style="Title.TLabel").pack(side=tk.LEFT)
+    ttk.Label(header_frame, text="HoloTrack", style="Title.TLabel").pack(side=tk.LEFT)
     ttk.Label(header_frame, text="v1.0", style="TLabel").pack(side=tk.RIGHT, pady=10)
     
     ttk.Separator(main_frame, orient='horizontal').pack(fill='x', pady=10)
