@@ -34,3 +34,9 @@ This README explains what the project does, how to run it, and the most importan
 Install dependencies with pip:
 ```bash
 pip install opencv-python numpy
+```
+
+---
+
+## Short Demo
+[Click here to access the demo](https://drive.google.com/file/d/13Db7KijjXU77jdIx1OZ43QJmXMtfURZJ/view?usp=sharing)
