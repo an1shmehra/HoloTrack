@@ -3,136 +3,162 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HoloRay Motion-Tracked Annotations</title>
+    <title>HoloRay | Motion-Tracked Annotation</title>
     <link rel="stylesheet" href="/static/css/style.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.0/socket.io.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="app-container">
         <!-- Header -->
         <header class="header">
             <div class="logo">
-                <span class="logo-icon">◉</span>
-                <h1>HoloRay Tracker</h1>
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <circle cx="12" cy="12" r="3"/>
+                        <line x1="12" y1="2" x2="12" y2="6"/>
+                        <line x1="12" y1="18" x2="12" y2="22"/>
+                        <line x1="2" y1="12" x2="6" y2="12"/>
+                        <line x1="18" y1="12" x2="22" y2="12"/>
+                    </svg>
+                </div>
+                <span class="logo-text">HoloRay</span>
             </div>
-            <div class="header-stats">
-                <div class="stat" id="fps-display">
-                    <span class="stat-label">FPS</span>
-                    <span class="stat-value">--</span>
-                </div>
-                <div class="stat" id="tracking-display">
-                    <span class="stat-label">Tracking</span>
-                    <span class="stat-value">0/0</span>
-                </div>
-                <div class="stat" id="latency-display">
-                    <span class="stat-label">Latency</span>
-                    <span class="stat-value">--ms</span>
+            <div class="header-status">
+                <div class="status-indicator" id="connectionStatus">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Connecting...</span>
                 </div>
             </div>
         </header>
 
-        <!-- Main content -->
-        <div class="main-content">
-            <!-- Video panel -->
-            <div class="video-panel">
-                <div class="video-container" id="video-container">
-                    <canvas id="video-canvas"></canvas>
-                    <canvas id="annotation-canvas"></canvas>
-                    <div class="video-placeholder" id="video-placeholder">
-                        <p>Load a video to begin</p>
-                    </div>
-                </div>
-
-                <!-- Video controls -->
-                <div class="video-controls">
-                    <button id="btn-play" class="control-btn" disabled>
-                        <span class="icon">▶</span> Play
-                    </button>
-                    <button id="btn-pause" class="control-btn" disabled>
-                        <span class="icon">⏸</span> Pause
-                    </button>
-                    <div class="progress-container">
-                        <input type="range" id="progress-bar" min="0" max="100" value="0" disabled>
-                        <span id="frame-counter">0 / 0</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Control panel -->
-            <div class="control-panel">
-                <!-- Video selection -->
-                <section class="panel-section">
-                    <h2>Video Source</h2>
-                    <select id="video-select">
-                        <option value="">Select a video...</option>
-                    </select>
-                    <button id="btn-load" class="primary-btn">Load Video</button>
-                </section>
-
-                <!-- Annotation tools -->
-                <section class="panel-section">
-                    <h2>Annotation Tools</h2>
-                    <div class="tool-buttons">
-                        <button id="tool-point" class="tool-btn active" title="Point Annotation">
-                            <span class="tool-icon">●</span>
-                            <span>Point</span>
-                        </button>
-                        <button id="tool-region" class="tool-btn" title="Region Annotation">
-                            <span class="tool-icon">□</span>
-                            <span>Region</span>
-                        </button>
-                    </div>
-                    <div class="tool-options">
-                        <label>
-                            Label:
-                            <input type="text" id="annotation-label" placeholder="Optional label">
-                        </label>
-                    </div>
-                </section>
-
-                <!-- Tracker settings -->
-                <section class="panel-section">
-                    <h2>Tracker Settings</h2>
-                    <div class="setting">
-                        <label>Region Tracker:</label>
-                        <select id="tracker-type">
-                            <option value="CSRT">CSRT (High Accuracy)</option>
-                            <option value="KCF">KCF (Balanced)</option>
-                            <option value="MOSSE">MOSSE (Fast)</option>
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <h3 class="section-title">Video</h3>
+                    <div class="video-selector">
+                        <select id="videoSelect" class="select-input">
+                            <option value="">Select a video...</option>
                         </select>
+                        <button id="loadBtn" class="btn btn-primary">Load</button>
                     </div>
-                </section>
+                </div>
 
-                <!-- Annotations list -->
-                <section class="panel-section">
-                    <h2>Active Annotations</h2>
-                    <div id="annotations-list" class="annotations-list">
-                        <p class="empty-message">No annotations yet</p>
+                <div class="sidebar-section">
+                    <h3 class="section-title">How to Use</h3>
+                    <div class="instructions-box">
+                        <div class="instruction-step">
+                            <span class="step-num">1</span>
+                            <span>Click to set anchor point</span>
+                        </div>
+                        <div class="instruction-step">
+                            <span class="step-num">2</span>
+                            <span>Shift + Drag to draw</span>
+                        </div>
+                        <div class="instruction-step">
+                            <span class="step-num">3</span>
+                            <span>Press Play to track</span>
+                        </div>
                     </div>
-                    <button id="btn-clear-all" class="danger-btn">Clear All</button>
-                </section>
+                </div>
 
-                <!-- Instructions -->
-                <section class="panel-section instructions">
-                    <h2>Instructions</h2>
-                    <ul>
-                        <li>Load a video using the dropdown</li>
-                        <li>Select Point or Region tool</li>
-                        <li>Click on the video to place annotations</li>
-                        <li>Press Play to start tracking</li>
-                        <li>Annotations follow the anatomy!</li>
-                    </ul>
-                </section>
+                <div class="sidebar-section">
+                    <h3 class="section-title">Tracking</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">Status</span>
+                            <span class="stat-value" id="trackingStatus">-</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Points</span>
+                            <span class="stat-value" id="trackingPoints">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">FPS</span>
+                            <span class="stat-value" id="fpsValue">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Frame</span>
+                            <span class="stat-value" id="frameValue">0/0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section" style="flex:1; display:flex; flex-direction:column;">
+                    <h3 class="section-title">Status</h3>
+                    <div id="statusMessage" class="status-message">Load a video to begin</div>
+                    <button id="clearBtn" class="btn btn-danger btn-block" style="margin-top:auto;">Clear All</button>
+                </div>
+            </aside>
+
+            <!-- Video Canvas -->
+            <div class="canvas-container">
+                <div class="canvas-wrapper" id="canvasWrapper">
+                    <canvas id="videoCanvas"></canvas>
+                    <div class="canvas-overlay" id="canvasOverlay">
+                        <div class="overlay-message">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <polygon points="5 3 19 12 5 21 5 3"/>
+                            </svg>
+                            <span>Load a video to begin</span>
+                        </div>
+                    </div>
+                    <div class="tracking-badge" id="trackingBadge">
+                        <span class="badge-dot"></span>
+                        <span class="badge-text">TRACKING</span>
+                    </div>
+                </div>
+
+                <!-- Playback Controls -->
+                <div class="controls">
+                    <div class="controls-left">
+                        <button class="control-btn" id="playBtn" title="Play/Pause (Space)">
+                            <svg class="play-icon" viewBox="0 0 24 24" fill="currentColor">
+                                <polygon points="5 3 19 12 5 21 5 3"/>
+                            </svg>
+                            <svg class="pause-icon hidden" viewBox="0 0 24 24" fill="currentColor">
+                                <rect x="6" y="4" width="4" height="16"/>
+                                <rect x="14" y="4" width="4" height="16"/>
+                            </svg>
+                        </button>
+                        <button class="control-btn" id="restartBtn" title="Restart">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="1 4 1 10 7 10"/>
+                                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="controls-center">
+                        <div class="progress-container">
+                            <input type="range" id="progressBar" class="progress-bar" min="0" max="100" value="0">
+                            <div class="progress-time">
+                                <span id="currentTime">0:00</span>
+                                <span>/</span>
+                                <span id="totalTime">0:00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="controls-right">
+                        <div class="speed-control">
+                            <label>Speed</label>
+                            <select id="speedSelect" class="select-small">
+                                <option value="0.5">0.5x</option>
+                                <option value="1" selected>1x</option>
+                                <option value="1.5">1.5x</option>
+                                <option value="2">2x</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-
-        <!-- Status bar -->
-        <footer class="status-bar">
-            <span id="status-message">Ready</span>
-            <span id="connection-status" class="connection disconnected">Disconnected</span>
-        </footer>
+        </main>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>
