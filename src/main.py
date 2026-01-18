@@ -6,6 +6,10 @@ annotations = []          # list of strokes
 current_stroke = []
 drawing = False
 
+TRACKING_STRIDE = 2  # try 2 or 3
+
+annotation_trackers = []   # list of Nx1x2 feature points
+
 VIDEO_PATH = os.path.join("data", "Lapchole1.mp4")
 
 prev_gray = None
@@ -14,7 +18,7 @@ annotation_point = None
 template_patch = None
 frame_count = 0
 paused = False
-speed_delay = 33  # default ~30 FPS
+speed_delay = 10  # default ~30 FPS
 
 def mouse_callback(event, x, y, flags, param):
     global annotation_point, tracking_points, prev_gray
@@ -47,21 +51,38 @@ def mouse_callback(event, x, y, flags, param):
 
     # SHIFT + LEFT → start drawing
     elif event == cv2.EVENT_LBUTTONDOWN and (flags & cv2.EVENT_FLAG_SHIFTKEY):
-        if annotation_point is None:
+        if prev_gray is None:
             return
         drawing = True
         current_stroke = []
+        annotation_trackers.append([])
 
     elif event == cv2.EVENT_MOUSEMOVE and drawing:
         dx = x - annotation_point[0]
         dy = y - annotation_point[1]
         current_stroke.append((dx, dy))
 
+        # Drop tracking points along path
+        mask = np.zeros_like(prev_gray)
+        cv2.circle(mask, (x, y), 15, 255, -1)
+
+        new_pts = cv2.goodFeaturesToTrack(
+            prev_gray,
+            maxCorners=5,
+            qualityLevel=0.01,
+            minDistance=3,
+            mask=mask
+        )
+
+        if new_pts is not None:
+            annotation_trackers[-1].append(new_pts)
+
     elif event == cv2.EVENT_LBUTTONUP and drawing:
         drawing = False
         if current_stroke:
             annotations.append(current_stroke)
-            print("Stroke saved")
+            print(f"Stroke saved with {len(annotation_trackers[-1])} tracker clusters")
+
 
 def main():
     global prev_gray, tracking_points, annotation_point, template_patch, frame_count, paused, speed_delay
@@ -87,26 +108,39 @@ def main():
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             frame_count += 1
 
-            # Optical flow tracking
-            if tracking_points is not None and prev_gray is not None:
-                new_points, status, _ = cv2.calcOpticalFlowPyrLK(
-                    prev_gray, gray, tracking_points, None
+            # Distributed optical flow tracking (multi-anchor)
+            dx_list = []
+            dy_list = []
+
+            if annotation_trackers and prev_gray is not None and frame_count % TRACKING_STRIDE == 0:
+                for tracker_group in annotation_trackers:
+                    for i in range(len(tracker_group)):
+                        pts = tracker_group[i]
+
+                        if pts is None or len(pts) == 0:
+                            continue
+
+                        new_pts, status, _ = cv2.calcOpticalFlowPyrLK(
+                            prev_gray, gray, pts, None
+                        )
+
+                        good_new = new_pts[status == 1]
+                        good_old = pts[status == 1]
+
+                        if len(good_new) > 0:
+                            dx_list.append((good_new[:, 0] - good_old[:, 0]).mean())
+                            dy_list.append((good_new[:, 1] - good_old[:, 1]).mean())
+
+                            tracker_group[i] = good_new.reshape(-1, 1, 2)
+
+            if dx_list and annotation_point is not None:
+                dx = np.clip(np.mean(dx_list), -5, 5)
+                dy = np.clip(np.mean(dy_list), -5, 5)
+
+                annotation_point = (
+                    int(annotation_point[0] + dx),
+                    int(annotation_point[1] + dy)
                 )
-                good_new = new_points[status == 1]
-                good_old = tracking_points[status == 1]
-
-                if len(good_new) > 0:
-                    dx = (good_new[:, 0] - good_old[:, 0]).mean()
-                    dy = (good_new[:, 1] - good_old[:, 1]).mean()
-
-                    dx = np.clip(dx, -5, 5)
-                    dy = np.clip(dy, -5, 5)
-
-                    annotation_point = (
-                        int(annotation_point[0] + dx),
-                        int(annotation_point[1] + dy)
-                    )
-                    tracking_points = good_new.reshape(-1, 1, 2)
 
             # Drift correction using template matching every 5 frames
             if template_patch is not None and annotation_point is not None and frame_count % 5 == 0:
@@ -132,6 +166,13 @@ def main():
                 x, y = p.ravel()
                 cv2.circle(frame, (int(x), int(y)), 2, (255, 0, 0), -1)
 
+        # Draw distributed tracking points (debug / demo)
+        for group in annotation_trackers:
+            for pts in group:
+                for p in pts:
+                    x, y = p.ravel()
+                    cv2.circle(frame, (int(x), int(y)), 1, (255, 255, 0), -1)
+
         # Draw annotations
         if annotation_point is not None:
             for stroke in annotations:
@@ -146,7 +187,7 @@ def main():
                     )
                     cv2.line(frame, p1, p2, (0, 0, 255), 2)
                     
-            # Draw current stroke live
+        # Draw current stroke live
         if drawing and annotation_point is not None and len(current_stroke) > 1:
             for i in range(1, len(current_stroke)):
                 p1 = (
@@ -158,6 +199,8 @@ def main():
                     annotation_point[1] + current_stroke[i][1]
                 )
                 cv2.line(frame, p1, p2, (0, 0, 255), 2)
+
+
 
         cv2.imshow("Tracking", frame)
 
